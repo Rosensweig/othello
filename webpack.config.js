@@ -1,3 +1,4 @@
+
 module.exports = {
   entry: [
     './src/index.js'
@@ -14,6 +15,10 @@ module.exports = {
       query: {
         presets: ['react', 'es2015', 'stage-1']
       }
+    }, {
+      test: /\.(png|gif|jpg)$/,
+      include: __dirname +'/static',
+      loader: 'file',
     }]
   },
   resolve: {

@@ -1,15 +1,43 @@
-export default {makeMove, getLegalMoves};
 
-// takes a list of positions, player, and grid
-// returns the positions that represent legal moves for that player
-function getLegalMoves(positions, player, grid) {
+// returns list of positions that represent legal moves for a player
+export function getLegalMoves(player, grid) {
+	const adjacentPositions = findAdjacent(grid);
 	const legalPositions = [];
-	for (var position of positions) {
+	for (var position of adjacentPositions) {
 		if (checkLegalMove(position, player, grid)) {
-			legalPositions.push(position);
+			legalPositions.push(position[0]*8+position[1]); //flatten coords to single numerical key
 		}
 	}
 	return legalPositions;
+}
+
+// Returns an array of coords with null contents and non-null neighbors.
+// These are potential legal moves, and provides the list for
+// which coords to investigate further
+function findAdjacent(grid) {
+	const adjacentPositions = [];
+	for (var y=0; y<8; y++) {
+		for (var x=0; x<8; x++) {
+			if (grid[y][x] != null) {
+				continue;
+			}
+			// For a single position, checks for non-null neighbors
+			// Loop is named so we can break out of it and inner loop
+			// at the same time
+			singlePosLoop: for (var i=-1; i<2; i++) {
+				if (y+i<0 || y+i >7) {continue;} // don't try to check positions off the board!
+				for (var j=-1; j<2; j++) {
+					if (x+j<0 || x+j > 7) {continue;}
+					if (i===0 && j===0) {continue;}
+					if (grid[y+i][x+j] != null) { // we have at least one non-null neighbor
+						adjacentPositions.push([y,x]);
+						break singlePosLoop; //breaks out of 2 loops at once
+					}
+				}
+			}
+		}
+	}
+	return adjacentPositions;
 }
 
 //checks whether a move is legal (would flip at least one tile)
@@ -22,20 +50,24 @@ function checkLegalMove(position, player, grid) {
 	);
 }
 
-//changes grid, flipping tiles according to a move
-function makeMove(position, player, grid) {
-	evalHorizLine(position, player, grid);
-	evalVertLine(position, player, grid);
-	evalDiagDRLine(position, player, grid);
-	evalDiagURLine(position, player, grid);
-	return grid;
+//Returns a new grid, flipping tiles according to a move
+export function makeMove(position, player, grid) {
+	const y = position[0];
+	const x = position[1]
+	const newGrid = JSON.parse(JSON.stringify(grid)); //make a copy of the grid, because we'll be changing it.
+	newGrid[y][x] = player;
+	evalHorizLine(position, player, newGrid, true);
+	evalVertLine(position, player, newGrid, true);
+	evalDiagDRLine(position, player, newGrid, true);
+	evalDiagURLine(position, player, newGrid, true);
+	return newGrid;
 }
 
 //Evaluates the flips in a line, based on a move.
 //Returns the flipped line, but doesn't change original.
 //Takes a move index, rather than an (x,y) coord.
 function evalLine(index, player, line) {
-	var opponent = (player==="W") ? "B" : "W";
+	const opponent = (player==="W") ? "B" : "W";
 	var newLine = line.slice();
 	var sandwichCenter = 0;
 	//check left for sandwich
@@ -47,7 +79,7 @@ function evalLine(index, player, line) {
 			continue;
 		}
 		else if (newLine[i] === player && sandwichCenter) {
-			// our tile is on the other end of our sandwich,
+			// active player tile is on the other end of our sandwich,
 			// and we have opponent tile(s) in the middle
 			while (sandwichCenter) {
 				i++;
@@ -85,9 +117,9 @@ function evalHorizLine(position, player, grid, change=false) {
 	const y = position[0];
 	const x = position[1];
 	const line = grid[y];
-	newLine = evalLine(x, player, line);
+	const newLine = evalLine(x, player, line);
 	if (!change) {
-		return (JSON.stringify(line) === JSON.stringify(newLine));
+		return (JSON.stringify(line) != JSON.stringify(newLine));
 	} else {
 		grid[y] = newLine;
 	}
@@ -102,9 +134,9 @@ function evalVertLine(position, player, grid, change=false) {
 	for (var i=0; i<8; i++) {
 		line.push(grid[i][x]);
 	}
-	newLine = evalLine(y, player, line);
+	const newLine = evalLine(y, player, line);
 	if (!change) {
-		return (JSON.stringify(line) === JSON.stringify(newLine));
+		return (JSON.stringify(line) != JSON.stringify(newLine));
 	} else {
 		for (var i=0; i<8; i++) {
 			grid[i][x]=newLine[i];
@@ -122,16 +154,17 @@ function evalDiagDRLine(position, player, grid, change=false) {
 	while ((x-i) < 8 && (y-i) < 8) {
 		line.push(grid[y-i][x-i]);
 		i--; //move down and right.
-		// (y-axis is upside down the way JS prints arrays)
+		// (y-axis is upside down the way JS prints arrays by default)
 	}
-	newLine = evalLine(i, player, line);
+	i = ((7-x)<y) ? 7-x : y;
+	const newLine = evalLine(i, player, line);
 	if (!change) {
-		return (JSON.stringify(line) === JSON.stringify(newLine));
+		return (JSON.stringify(line) != JSON.stringify(newLine));
 	} else {
 		i = (x<y) ? x : y;
 		for (var j=0; j<newLine.length; j++) {
 			grid[y-i][x-i]=newLine[j];
-			i--; j++;
+			i--;
 		}
 	}
 	return newLine;
@@ -147,13 +180,14 @@ function evalDiagURLine(position, player, grid, change=false) {
 		line.push(grid[y-i][x+i]);
 		i--;
 	}
-	newLine = evalLine(y, player, line);
+	i = ((7-x)<y) ? 7-x : y;
+	const newLine = evalLine(i, player, line);
 	if (!change) {
-		return (JSON.stringify(line) === JSON.stringify(newLine));
+		return (JSON.stringify(line) != JSON.stringify(newLine));
 	} else {
 		i = ((7-x)<y) ? 7-x : y;
 		for (var j=0; j<newLine.length; j++) {
-			line.push(grid[y-i][x+i]);
+			grid[y-i][x+i] = newLine[j];
 			i--;
 		}
 	}
@@ -162,7 +196,7 @@ function evalDiagURLine(position, player, grid, change=false) {
 
 
 //formLine refactored into other functions above,
-// but left here so you can see my thought process 
+// but left here so you can see my thought process/evolution 
 
 // function formLine(position, grid, orientation) {
 // 	var line = [];
@@ -206,6 +240,9 @@ function evalDiagURLine(position, player, grid, change=false) {
 
 
 
+// ===========================================
+// some quick and dirty testing I used along the way
+// ===========================================
 
 // const testGrid = [];
 // for (var i=0; i<8; i++) {
@@ -227,3 +264,22 @@ function evalDiagURLine(position, player, grid, change=false) {
 // const testEvalLine = [null, "W", "B", "B"];
 // console.log(`Testing line ${testEvalLine}, player "W", position 1:`);
 // console.log(evalLine(1, "W", testEvalLine));
+
+
+// var initialState=[];
+// for (var i=0; i<8; i++) {
+// 	initialState.push([]);
+// 	for (var j=0; j<8; j++) {
+// 		if (i<3 || i>4 || j<3 || j>4) {
+// 			initialState[i].push(null);
+// 		} else if (i===j) {
+// 			initialState[i].push('W');
+// 		} else {
+// 			initialState[i].push('B');
+// 		}
+// 	}
+// }
+// console.log("Initial state: \n", initialState);
+// console.log("Adjacent spaces: ", findAdjacent(initialState));
+// console.log("Legal moves for W: ", getLegalMoves("W", initialState));
+// console.log("New grid after move y=4, x=2: \n", makeMove([4,2], "W", initialState));
